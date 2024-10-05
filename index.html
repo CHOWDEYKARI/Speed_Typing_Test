@@ -1,29 +1,285 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <title>Speed Typing Test</title>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <main>
-      <div class="quote-display" id="quoteDisplay"><span></span></div>
-      <section class="typing">
-        <hr />
-        <div class="score">
-          <div class="timer">
-            <span class="timer__label">Time:</span>
-            <span class="timer__text" id="timer">0</span>
-          </div>
-          <div="words-per-minute">
-            <span class="words-per-minute__label">Words/min:</span>
-            <span class="words-per-minute__text" id="wpm">0</span>
-        </div>
-        </div>
-        <textarea class="quote-input" name="quoteInput" id="quoteInput" placeholder="Start typing right here!" cdkFocusInitial></textarea>
-      </section>
-    </main>
-    <script src="script.js"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Test with Speech Recognition</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 900px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+
+        .story {
+            background-color: #eaeaea;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+        }
+
+        .textarea-container {
+            position: relative;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            font-size: 1.25rem;
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid #ddd;
+            resize: none;
+            outline: none;
+        }
+
+        .error {
+            color: red;
+            text-decoration: underline;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            font-size: 1.1rem;
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .passed {
+            color: green;
+        }
+
+        .failed {
+            color: red;
+        }
+
+        .speech-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .speech-btn:disabled {
+            background-color: #ccc;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .story {
+                font-size: 1rem;
+            }
+
+            textarea {
+                font-size: 1rem;
+                height: 120px;
+            }
+
+            .stats {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Typing Test with Speech Recognition</h1>
+
+    <!-- Story Display -->
+    <div class="story" id="storyDisplay">
+        Loading new story...
+    </div>
+
+    <!-- Typing Area -->
+    <div class="textarea-container">
+        <textarea id="textInput" placeholder="Start typing here..."></textarea>
+    </div>
+
+    <!-- Speech Recognition Button -->
+    <button id="speechButton" class="speech-btn">Start Speech Recognition</button>
+
+    <!-- Stats Display -->
+    <div class="stats">
+        <div>Time Left: <span id="timer">60</span> seconds</div>
+        <div>WPM: <span id="wpm">0</span></div>
+    </div>
+
+    <!-- Test Result -->
+    <div id="result" class="result"></div>
+</div>
+
+<script>
+    const stories = [
+        "Once upon a time in a small village, there was a farmer who grew the most delicious fruits.",
+        "The sun was setting over the mountains, painting the sky in hues of orange and pink.",
+        "In the heart of the forest, there was a hidden treasure that had been untouched for centuries.",
+        "The spaceship hovered over the strange planet, ready to make its descent.",
+        "In a bustling city, a young musician was preparing for the concert of a lifetime."
+    ];
+    
+    const storyDisplayElement = document.getElementById('storyDisplay');
+    const textInputElement = document.getElementById('textInput');
+    const timerElement = document.getElementById('timer');
+    const wpmElement = document.getElementById('wpm');
+    const resultElement = document.getElementById('result');
+    const speechButton = document.getElementById('speechButton');
+
+    let timer = 60;
+    let timerInterval;
+    let startTime;
+    let hasStarted = false;
+    let recognition;
+    let story;
+
+    // Function to load a random story
+    function loadNewStory() {
+        const randomIndex = Math.floor(Math.random() * stories.length);
+        story = stories[randomIndex];
+        storyDisplayElement.innerText = story;
+    }
+
+    // Start the timer when typing begins
+    function startTimer() {
+        startTime = new Date();
+        timerInterval = setInterval(() => {
+            timer--;
+            timerElement.innerText = timer;
+            if (timer === 0) {
+                clearInterval(timerInterval);
+                endTest();
+            }
+        }, 1000);
+    }
+
+    // Calculate WPM
+    function calculateWPM() {
+        const elapsedTime = (60 - timer) / 60;
+        const wordsTyped = textInputElement.value.split(' ').filter(word => word.length > 0).length;
+        return Math.round(wordsTyped / elapsedTime);
+    }
+
+    // Highlight incorrect words
+    function highlightErrors() {
+        const storyArray = story.split('');
+        const inputArray = textInputElement.value.split('');
+
+        let highlightedText = '';
+
+        for (let i = 0; i < storyArray.length; i++) {
+            if (inputArray[i] === storyArray[i]) {
+                highlightedText += storyArray[i];
+            } else {
+                highlightedText += `<span class="error">${storyArray[i]}</span>`;
+            }
+        }
+
+        storyDisplayElement.innerHTML = highlightedText;
+    }
+
+    // End the test and display result
+    function endTest() {
+        const wpm = calculateWPM();
+        wpmElement.innerText = wpm;
+
+        if (wpm >= 35) {
+            resultElement.innerText = 'Passed!';
+            resultElement.classList.add('passed');
+        } else {
+            resultElement.innerText = 'Failed!';
+            resultElement.classList.add('failed');
+        }
+    }
+
+    // Initialize speech recognition (Web Speech API)
+    function initializeSpeechRecognition() {
+        if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+            alert('Sorry, your browser does not support Speech Recognition API. Try using Google Chrome.');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map(result => result[0].transcript)
+                .join('');
+            textInputElement.value = transcript;
+            highlightErrors();
+        };
+
+        recognition.onend = () => {
+            speechButton.disabled = false;
+        };
+    }
+
+    // Event listener to track user input
+    textInputElement.addEventListener('input', () => {
+        if (!hasStarted) {
+            startTimer();
+            hasStarted = true;
+        }
+
+        highlightErrors();
+
+        if (textInputElement.value === story) {
+            clearInterval(timerInterval);
+            endTest();
+        }
+    });
+
+    // Event listener for speech recognition button
+    speechButton.addEventListener('click', () => {
+        if (recognition) {
+            recognition.start();
+            speechButton.disabled = true;
+        }
+    });
+
+    // Load new story and initialize speech recognition when the page loads
+    window.onload = () => {
+        loadNewStory();
+        initializeSpeechRecognition();
+    };
+
+</script>
+</body>
 </html>
